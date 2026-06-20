@@ -2,7 +2,7 @@
 
 Full-stack application boilerplate for AI-assisted coding interviews (60–90 min).
 
-**Stack:** Go + Gin · React + TypeScript + TailwindCSS · PostgreSQL · Nginx · Docker Compose
+**Stack:** Go + Gin · React + TypeScript + TailwindCSS + Axios + React Query · PostgreSQL · Nginx · Docker Compose
 
 ---
 
@@ -21,7 +21,7 @@ make up
 ```
 
 - App: http://localhost:3000
-- API health: http://localhost:3000/api/health
+- API health: http://localhost:3000/api/v1/health
 
 ---
 
@@ -29,13 +29,13 @@ make up
 
 ```
 Browser → nginx:3000
-              ├── /api/*  → backend:8080  (Go + Gin, hot reload via Air)
-              └── /*      → frontend:5173 (React + Vite, HMR)
-                                │
-                           postgres:5432
+              ├── /api/v1/*  → backend:8080  (Go + Gin, hot reload via Air)
+              └── /*         → frontend:5173 (React + Vite, HMR)
+                                    │
+                               postgres:5432
 ```
 
-All traffic flows through a single Nginx entry point — no CORS configuration needed.
+All traffic flows through a single Nginx entry point.
 
 ---
 
@@ -58,16 +58,14 @@ Both the backend (Air) and frontend (Vite) support hot reload — file saves are
 ```
 fsa-boilerplate/
 ├── backend/
-│   ├── internal/
-│   │   ├── config/      # env var loading
-│   │   ├── db/          # connection pool + migration runner
-│   │   ├── handlers/    # Gin handler functions
-│   │   ├── middleware/  # CORS, auth, etc.
-│   │   └── router/      # route registration
+│   ├── api/             # HTTP handlers and router (/api/v1 routes)
+│   ├── dal/             # data access layer (DB connection, migrations)
+│   ├── config/          # environment configuration
 │   └── migrations/      # *.sql files run in order at startup
 ├── frontend/
 │   └── src/
-│       ├── api/         # fetch wrapper (base URL: /api)
+│       ├── api/         # Axios client (base URL: /api/v1)
+│       ├── hooks/       # React Query custom hooks
 │       ├── components/  # shared UI components
 │       └── pages/       # route-level page components
 └── nginx/
@@ -88,24 +86,29 @@ CREATE TABLE IF NOT EXISTS items (
 );
 ```
 
-**2. Handler** — `backend/internal/handlers/items.go`
+**2. Handler** — add to `backend/api/handlers.go`
 ```go
 func ListItems(c *gin.Context) { ... }
 func CreateItem(c *gin.Context) { ... }
 ```
 
-**3. Route** — add to `backend/internal/router/router.go`
+**3. Route** — add to `backend/api/router.go` in the `v1` group
 ```go
-api.GET("/items", handlers.ListItems)
-api.POST("/items", handlers.CreateItem)
+v1.GET("/items", ListItems)
+v1.POST("/items", CreateItem)
 ```
 
-**4. API call** — `frontend/src/api/client.ts` is pre-wired
+**4. Hook** — `frontend/src/hooks/useItems.ts` with React Query
 ```ts
-const items = await api.get<Item[]>('/items')
+export function useItems() {
+  return useQuery({
+    queryKey: ['items'],
+    queryFn: () => api.get<Item[]>('/items').then(res => res.data)
+  })
+}
 ```
 
-**5. Page** — `frontend/src/pages/ItemsPage.tsx`
+**5. Page** — `frontend/src/pages/ItemsPage.tsx` using the hook
 
 ---
 
@@ -115,4 +118,4 @@ const items = await api.get<Item[]>('/items')
 make build-prod   # builds static frontend, runs backend binary
 ```
 
-In production, Nginx serves the compiled React assets from `dist/` and proxies `/api/*` to the Go backend. No Vite or Node process runs.
+In production, Nginx serves the compiled React assets from `dist/` and proxies `/api/v1/*` to the Go backend. No Vite or Node process runs.
