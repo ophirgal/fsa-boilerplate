@@ -8,7 +8,7 @@ This is a full-stack web application built for a coding interview. The goal is t
 |---|---|
 | Backend | Go 1.23 + Gin |
 | Database | PostgreSQL 16 (via `database/sql` + pgx driver) |
-| Frontend | React 18 + TypeScript + TailwindCSS 3 |
+| Frontend | React 18 + TypeScript + TailwindCSS 3 + Axios + React Query |
 | Dev server | Vite 5 (HMR enabled) |
 | Reverse proxy | Nginx (single entry point) |
 | Orchestration | Docker Compose |
@@ -24,14 +24,14 @@ make down              # stop
 make clean             # stop + wipe volumes
 ```
 
-App is at **http://localhost:3000**. API is at **http://localhost:3000/api/**.
+App is at **http://localhost:3000**. API is at **http://localhost:3000/api/v1/**.
 
 ## Architecture
 
 ```
 Browser → nginx:80 (host: 3000)
-              ├── /api/*  → backend:8080
-              └── /*      → frontend:5173 (dev) / static files (prod)
+              ├── /api/v1/*  → backend:8080
+              └── /*         → frontend:5173 (dev) / static files (prod)
 ```
 
 Both backend (Air) and frontend (Vite) hot-reload on file save. No container restarts needed during development.
@@ -41,11 +41,13 @@ Both backend (Air) and frontend (Vite) hot-reload on file save. No container res
 | File | Purpose |
 |---|---|
 | `backend/main.go` | Entry point: load config, connect DB, run migrations, start server |
-| `backend/internal/router/router.go` | All route registrations go here |
-| `backend/internal/handlers/` | One file per resource (e.g., `items.go`) |
-| `backend/internal/db/db.go` | `Connect()` and `RunMigrations()` |
+| `backend/api/router.go` | Route registrations in `/api/v1` group |
+| `backend/api/handlers.go` | HTTP handlers (add more files per resource as needed) |
+| `backend/dal/db.go` | `NewDB()` and `RunMigrations()` |
+| `backend/config/config.go` | Configuration loading |
 | `backend/migrations/` | SQL files run in alphabetical order at startup |
-| `frontend/src/api/client.ts` | Pre-wired fetch wrapper — base URL is `/api` |
+| `frontend/src/api/client.ts` | Axios instance with base URL `/api/v1` |
+| `frontend/src/hooks/` | React Query custom hooks for API calls |
 | `frontend/src/pages/` | Top-level page components |
 | `frontend/src/components/` | Reusable UI components |
 
@@ -63,44 +65,53 @@ CREATE TABLE IF NOT EXISTS items (
 Migrations run automatically on next backend start.
 
 ### 2. Handler
-Create `backend/internal/handlers/items.go`:
+Add to `backend/api/handlers.go` (or create separate file if handler is complex):
 ```go
-package handlers
-
-import (
-    "database/sql"
-    "net/http"
-    "github.com/gin-gonic/gin"
-)
-
-func ListItems(db *sql.DB) gin.HandlerFunc {
-    return func(c *gin.Context) {
-        rows, err := db.QueryContext(c.Request.Context(), `SELECT id, name, created_at FROM items ORDER BY id`)
-        if err != nil {
-            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-            return
-        }
-        defer rows.Close()
-        // scan rows...
-        c.JSON(http.StatusOK, items)
+func ListItems(c *gin.Context) {
+    rows, err := db.QueryContext(c.Request.Context(), `SELECT id, name, created_at FROM items ORDER BY id`)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
     }
+    defer rows.Close()
+    // scan rows...
+    c.JSON(http.StatusOK, items)
 }
 ```
 
 ### 3. Route
-In `backend/internal/router/router.go`, add inside the `api` group:
+In `backend/api/router.go`, add inside the `v1` group:
 ```go
-api.GET("/items", handlers.ListItems(db))
-api.POST("/items", handlers.CreateItem(db))
+v1.GET("/items", ListItems)
+v1.POST("/items", CreateItem)
 ```
 
-Pass `db *sql.DB` to `router.New()` — it already receives it.
-
-### 4. Frontend API call
-`frontend/src/api/client.ts` is pre-wired. Use it directly:
+### 4. Frontend Hook
+Create `frontend/src/hooks/useItems.ts`:
 ```ts
-const items = await api.get<Item[]>('/items')
-await api.post('/items', { name: 'example' })
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import api from '../api/client'
+
+export function useItems() {
+  return useQuery({
+    queryKey: ['items'],
+    queryFn: () => api.get<Item[]>('/items').then(res => res.data)
+  })
+}
+
+export function useCreateItem() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: CreateItemInput) => api.post('/items', data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['items'] })
+  })
+}
+```
+
+Then use in components:
+```ts
+const { data: items, isLoading } = useItems()
+const { mutate: createItem } = useCreateItem()
 ```
 
 ### 5. Page
@@ -127,7 +138,7 @@ Create `frontend/src/pages/ItemsPage.tsx` and add it to the router in `App.tsx`.
 
 Module name: `fsa-boilerplate/backend`
 
-Import paths follow `fsa-boilerplate/backend/internal/<package>`.
+Import paths follow `fsa-boilerplate/backend/<package>` (e.g., `fsa-boilerplate/backend/api`, `fsa-boilerplate/backend/dal`, `fsa-boilerplate/backend/config`).
 
 ## Tailwind
 
@@ -137,3 +148,12 @@ Classes are available everywhere in `src/`. No configuration needed — just use
 - Typography: `text-xl font-bold text-gray-900`
 - Colors: `bg-white`, `text-gray-500`, `border-gray-200`
 - Interactive: `hover:bg-blue-600`, `focus:outline-none focus:ring-2`
+
+## Autonomy
+- When asked to implement a plan, execute it fully end-to-end — including running tests and verification — without asking for permission at each step.
+
+## General Coding Guidelines
+- When adding code for a new feature, make minimal changes needed to implement the feature while still sticking to good practices (e.g. do not hardcode things just because it's more minimal). 
+- Do not overengineer and add more files than are needed for the feature.
+- For backend features, write tests first and use those to validate the feature's implementation (TDD). One happy path test and one error case test is good enough, no need to go crazy with tests. But you may add more tests if you think they are important.
+- For frontend tests, use jest and the React Testing library to test with user events and by using jest to mock API calls.
