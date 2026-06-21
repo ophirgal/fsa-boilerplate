@@ -2,7 +2,7 @@
 
 Full-stack application boilerplate for AI-assisted coding interviews (60–90 min).
 
-**Stack:** Go + Gin · React + TypeScript + TailwindCSS + Axios + React Query · PostgreSQL · Nginx · Docker Compose
+**Stack:** Go + Gin · React + TypeScript + TailwindCSS + shadcn/ui + Axios + React Query · PostgreSQL · Nginx · Docker Compose
 
 ---
 
@@ -63,10 +63,13 @@ fsa-boilerplate/
 │   ├── config/          # environment configuration
 │   └── migrations/      # *.sql files run in order at startup
 ├── frontend/
+│   ├── components.json  # shadcn/ui CLI config
 │   └── src/
 │       ├── api/         # Axios client (base URL: /api/v1)
 │       ├── hooks/       # React Query custom hooks
-│       ├── components/  # shared UI components
+│       ├── lib/         # utilities (cn(), etc.)
+│       ├── components/
+│       │   └── ui/      # shadcn/ui components
 │       └── pages/       # route-level page components
 └── nginx/
     ├── nginx.conf       # dev proxy config
@@ -109,6 +112,37 @@ export function useItems() {
 ```
 
 **5. Page** — `frontend/src/pages/ItemsPage.tsx` using the hook
+
+---
+
+## shadcn/ui
+
+UI components live in `frontend/src/components/ui/`. A `Button` component is included as a starter. Add more from the shadcn registry:
+
+```bash
+cd frontend
+npx shadcn@latest add card
+npx shadcn@latest add input
+npx shadcn@latest add dialog
+```
+
+Import components using the `@` alias:
+
+```tsx
+import { Button } from '@/components/ui/button'
+
+<Button variant="outline">Click me</Button>
+```
+
+Use `cn()` to merge Tailwind classes conditionally:
+
+```tsx
+import { cn } from '@/lib/utils'
+
+<div className={cn('p-4', isActive && 'bg-primary text-primary-foreground')} />
+```
+
+Theme tokens (`bg-primary`, `text-muted-foreground`, etc.) are defined as CSS variables in `src/index.css` and mapped in `tailwind.config.js`.
 
 ---
 

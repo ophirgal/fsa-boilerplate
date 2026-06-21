@@ -8,7 +8,7 @@ This is a full-stack web application built for a coding interview. The goal is t
 |---|---|
 | Backend | Go 1.23 + Gin |
 | Database | PostgreSQL 16 (via `database/sql` + pgx driver) |
-| Frontend | React 18 + TypeScript + TailwindCSS 3 + Axios + React Query |
+| Frontend | React 18 + TypeScript + TailwindCSS 3 + shadcn/ui + Axios + React Query |
 | Dev server | Vite 5 (HMR enabled) |
 | Reverse proxy | Nginx (single entry point) |
 | Orchestration | Docker Compose |
@@ -49,7 +49,9 @@ Both backend (Air) and frontend (Vite) hot-reload on file save. No container res
 | `frontend/src/api/client.ts` | Axios instance with base URL `/api/v1` |
 | `frontend/src/hooks/` | React Query custom hooks for API calls |
 | `frontend/src/pages/` | Top-level page components |
-| `frontend/src/components/` | Reusable UI components |
+| `frontend/src/components/` | Reusable UI components (shadcn/ui components live in `components/ui/`) |
+| `frontend/src/lib/utils.ts` | `cn()` utility for merging Tailwind classes |
+| `frontend/components.json` | shadcn/ui CLI config |
 
 ## Adding a New Resource (End-to-End)
 
@@ -140,14 +142,29 @@ Module name: `fsa-boilerplate/backend`
 
 Import paths follow `fsa-boilerplate/backend/<package>` (e.g., `fsa-boilerplate/backend/api`, `fsa-boilerplate/backend/dal`, `fsa-boilerplate/backend/config`).
 
-## Tailwind
+## Tailwind & shadcn/ui
 
-Classes are available everywhere in `src/`. No configuration needed — just use utility classes. Common patterns:
-- Layout: `flex`, `grid`, `min-h-screen`, `container mx-auto`
-- Spacing: `p-4`, `px-6`, `my-8`, `gap-4`
-- Typography: `text-xl font-bold text-gray-900`
-- Colors: `bg-white`, `text-gray-500`, `border-gray-200`
-- Interactive: `hover:bg-blue-600`, `focus:outline-none focus:ring-2`
+Tailwind classes are available everywhere in `src/`. shadcn/ui components live in `src/components/ui/` and use CSS variable–based tokens (`bg-primary`, `text-muted-foreground`, etc.) defined in `src/index.css`.
+
+The `@` alias resolves to `src/`, so imports look like `import { Button } from '@/components/ui/button'`.
+
+**Adding a shadcn component** (run from `frontend/`):
+```bash
+npx shadcn@latest add <component>   # e.g. npx shadcn@latest add card
+```
+This drops the component file into `src/components/ui/` and installs any missing Radix peer deps.
+
+**`cn()` utility** — merge Tailwind classes safely:
+```ts
+import { cn } from '@/lib/utils'
+<div className={cn('px-4', isActive && 'bg-primary')} />
+```
+
+Common token classes:
+- Backgrounds: `bg-background`, `bg-card`, `bg-primary`, `bg-muted`
+- Text: `text-foreground`, `text-muted-foreground`, `text-primary-foreground`
+- Borders: `border-border`, `border-input`
+- Interactive: `hover:bg-accent`, `focus-visible:ring-2 focus-visible:ring-ring`
 
 ## Autonomy
 - When asked to implement a plan, execute it fully end-to-end — including running tests and verification — without asking for permission at each step.
