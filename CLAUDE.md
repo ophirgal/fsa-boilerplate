@@ -40,11 +40,12 @@ Both backend (Air) and frontend (Vite) hot-reload on file save. No container res
 
 | File | Purpose |
 |---|---|
-| `backend/main.go` | Entry point: load config, connect DB, run migrations, start server |
-| `backend/api/router.go` | Route registrations in `/api/v1` group |
-| `backend/api/handlers.go` | HTTP handlers (add more files per resource as needed) |
-| `backend/dal/db.go` | `NewDB()` and `RunMigrations()` |
-| `backend/config/config.go` | Configuration loading |
+| `backend/cmd/backend/main.go` | Entry point: load config, connect DB, run migrations, start server |
+| `backend/internal/api/router.go` | Route registrations in `/api/v1` group |
+| `backend/internal/api/handlers.go` | HTTP handlers (add more files per resource as needed) |
+| `backend/internal/dal/db.go` | `NewDB()` and `RunMigrations()` |
+| `backend/internal/config/config.go` | Configuration loading |
+| `backend/internal/model/` | Domain structs / entities |
 | `backend/migrations/` | SQL files run in alphabetical order at startup |
 | `frontend/src/api/client.ts` | Axios instance with base URL `/api/v1` |
 | `frontend/src/hooks/` | React Query custom hooks for API calls |
@@ -67,7 +68,7 @@ CREATE TABLE IF NOT EXISTS items (
 Migrations run automatically on next backend start.
 
 ### 2. Handler
-Add to `backend/api/handlers.go` (or create separate file if handler is complex):
+Add to `backend/internal/api/handlers.go` (or create separate file if handler is complex):
 ```go
 func ListItems(c *gin.Context) {
     rows, err := db.QueryContext(c.Request.Context(), `SELECT id, name, created_at FROM items ORDER BY id`)
@@ -82,7 +83,7 @@ func ListItems(c *gin.Context) {
 ```
 
 ### 3. Route
-In `backend/api/router.go`, add inside the `v1` group:
+In `backend/internal/api/router.go`, add inside the `v1` group:
 ```go
 v1.GET("/items", ListItems)
 v1.POST("/items", CreateItem)
@@ -140,7 +141,7 @@ Create `frontend/src/pages/ItemsPage.tsx` and add it to the router in `App.tsx`.
 
 Module name: `fsa-boilerplate/backend`
 
-Import paths follow `fsa-boilerplate/backend/<package>` (e.g., `fsa-boilerplate/backend/api`, `fsa-boilerplate/backend/dal`, `fsa-boilerplate/backend/config`).
+Import paths follow `fsa-boilerplate/backend/internal/<package>` (e.g., `fsa-boilerplate/backend/internal/api`, `fsa-boilerplate/backend/internal/dal`, `fsa-boilerplate/backend/internal/config`).
 
 ## Tailwind & shadcn/ui
 
